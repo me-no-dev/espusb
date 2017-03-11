@@ -7,11 +7,9 @@
 #include "uart.h"
 #include "osapi.h"
 #include "espconn.h"
-#include "mystuff.h"
-#include "ws2812_i2s.h"
 #include "commonservices.h"
 #include <mdns.h>
-#include <mystuff.h>
+#include <esp82xxutil.h>
 #include <gpio.h>
 #include <common.h>
 #include <usb.h>
@@ -22,8 +20,6 @@
 #define procTaskQueueLen    1
 
 static volatile os_timer_t some_timer;
-uint8_t last_leds[512*3];
-int last_led_count;
 
 
 //int ICACHE_FLASH_ATTR StartMDNS();
@@ -44,7 +40,7 @@ os_event_t    procTaskQueue[procTaskQueueLen];
 
 
 //Awkward example with use of control messages to get data to/from device.
-uint8_t user_control[150];
+uint8_t user_control[144]; //Enough for FW######## ### [128 bytes of data] [null]
 int     user_control_length_acc; //From host to us.
 int     user_control_length_ret; //From us to host.
 
@@ -200,15 +196,15 @@ end:\n\
 }
 #endif
 
-void user_init(void)
+void user_rf_cal_sector_set()
+{
+}
+
+void ICACHE_FLASH_ATTR user_init(void)
 {
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
-	PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U,FUNC_GPIO2);
-    PIN_DIR_OUTPUT = _BV(2);
-	PIN_OUT_SET = _BV(2);
 
-	//ets_delay_us(200000);
-	//uart0_sendStr("\r\n\033c" );
+	uart0_sendStr("\r\n\033c" ); //Clear screen
 	uart0_sendStr("esp8266 test usb driver\r\n");
 	system_update_cpu_freq( 80 );
 //#define PROFILE
@@ -223,6 +219,19 @@ void user_init(void)
 	system_restart();
 	while(1);
 #endif
+
+	//Print reboot cause
+	
+	struct rst_info * r = system_get_rst_info();
+	printf( "Reason: %p\n", r->reason );
+	printf( "Exec  : %p\n", r->exccause );
+	printf( "epc1  : %p\n", r->epc1 );
+	printf( "epc2  : %p\n", r->epc2 );
+	printf( "epc3  : %p\n", r->epc3 );
+	printf( "excvaddr:%p\n", r->excvaddr );
+	printf( "depc: %p\n", r->depc );
+
+
 
 //Uncomment this to force a system restore.
 //	system_restore();
@@ -245,10 +254,10 @@ void user_init(void)
 		READ_PERI_REG(RTC_GPIO_ENABLE) & (uint32)0xfffffffe);       //out disable
 
 	SetServiceName( "espusb" );
-	AddMDNSName( "cn8266" );
+	AddMDNSName( "esp82xx" );
 	AddMDNSName( "espusb" );
 	AddMDNSService( "_http._tcp", "An ESP8266 Webserver", 80 );
-	AddMDNSService( "_cn8266._udp", "ESP8266 Backend", 7878 );
+	AddMDNSService( "_esp82xx._udp", "ESP8266 Backend", 7878 );
 
 	//Add a process
 	system_os_task(procTask, procTaskPrio, procTaskQueue, procTaskQueueLen);
@@ -256,7 +265,7 @@ void user_init(void)
 	//Timer example
 	os_timer_disarm(&some_timer);
 	os_timer_setfn(&some_timer, (os_timer_func_t *)myTimer, NULL);
-	os_timer_arm(&some_timer, 100, 1);
+	os_timer_arm(&some_timer, SLOWTICK_MS, 1);
 
 	printf( "Boot Ok.\n" );
 

@@ -2,12 +2,12 @@
 <!-- Copyright (C) 2015 <>< Charles Lohr, see LICENSE file for more info.
 This particular file may be licensed under the MIT/x11, New BSD or ColorChord Licenses. -->
 <head>
-<title>esp8266 ws2812 USB controller</title>
+<title>esp8266 USB controller</title>
 <script language="javascript" type="text/javascript" src=jquery-2.1.4.min.js.gz></script>
 <script language="javascript" type="text/javascript" src=menuinterface.js></script>
 <script language="javascript" type="text/javascript" src=main.js></script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.15, maximum-scale=1.15, user-scalable=no">
 <style>
 table { width: 100%; }
 td { vertical-align: top; }
@@ -34,7 +34,7 @@ td { vertical-align: top; }
 <table border=1><tr><td>
 <p>Welcome to the espusb Web-based GUI.</p>
 <p>This GUI uses WebSockets, and has only been tested under the newest (as of August, 2016) Chrome and Firefox browsers.</p>
-<p>For more information about this project, visit it on github, here: <a href=https://github.com/cnlohr/espusb>https://github.com/cnlohr/esp8266ws2812i2s</a></p>
+<p>For more information about this project, visit it on github, here: <a href=https://github.com/cnlohr/espusb>https://github.com/cnlohr/espusb</a></p>
 </div></td></tr></table></td></tr>
 
 <tr><td width=1>
@@ -46,12 +46,40 @@ td { vertical-align: top; }
 <TR><TD><div id=Mouse0 class="regbtn">Left</div></TD><TD><div id=Mouse2 class="regbtn">Middle</div></TD><TD><div id=Mouse1 class="regbtn">Right</div></TD></TR>
 </table>
 
-<p>Keyboard:<input id=KeyboardInput type="text"></p>
+<p>Keyboard: <button id="kbd">Focus/Show keyboard</button><input id="kin" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"/></p>Ctrl:<input type=checkbox id="mod0">Shift:<input type=checkbox id="mod1">Alt:<input type=checkbox id="mod2">Gui:<input type=checkbox id="mod3">
+<p>
+<input type=submit value="ESC" id="specialpress0">
+<input type=submit value="F1" id="specialpress1">
+<input type=submit value="F2" id="specialpress2">
+<input type=submit value="F3" id="specialpress3">
+<input type=submit value="F4" id="specialpress4">
+<input type=submit value="F5" id="specialpress5">
+<input type=submit value="F6" id="specialpress6">
+<input type=submit value="F7" id="specialpress7">
+<input type=submit value="F8" id="specialpress8">
+<input type=submit value="F9" id="specialpress9">
+<input type=submit value="F10" id="specialpress10">
+<input type=submit value="F11" id="specialpress11">
+<input type=submit value="F12" id="specialpress12">
+<input type=submit value="Prnt" id="specialpress13">
+<input type=submit value="Pause" id="specialpress14">
+<input type=submit value="Delete" id="specialpress15">
 
-<!--
-<p><div id="kbdstatus">Click to type:</div><button id="kbdfocus">Focus/Show Keyboard</button>
-<input type="text" id="kbd" style="display:none;"/></p>
--->
+<input type=submit value="PgUp" id="specialpress16">
+<input type=submit value="PgDn" id="specialpress17">
+<input type=submit value="Home" id="specialpress18">
+<input type=submit value="End" id="specialpress19">
+<input type=submit value="Enter" id="specialpress20">
+<input type=submit value="Vol Up" id="specialpress21">
+<input type=submit value="Vol Dn" id="specialpress22">
+</p>
+<p>
+<input type=submit value=">>" id="specialpress23">
+<input type=submit value="<<" id="specialpress24">
+<input type=submit value="vv" id="specialpress25">
+<input type=submit value="^^" id="specialpress26">
+</p>
+
 
 </td></tr></table>
 </div>

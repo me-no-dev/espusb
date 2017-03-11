@@ -2,7 +2,7 @@
 
 #include "usb.h"
 #include <string.h>
-#include <mystuff.h>
+#include <esp82xxutil.h>
 #include <eagle_soc.h>
 #include <gpio.h>
 #include "usb_table_1bit.h"
@@ -12,13 +12,15 @@ struct usb_internal_state_struct usb_internal_state __attribute__((aligned(4)));
 #define ENDPOINT0_SIZE 8 //Fixed for USB 1.1, Low Speed.
 
 #define INSTANCE_DESCRIPTORS
-#include "usb_config.h"
+#include <usb_config.h>
 
 //Received a setup for a specific endpoint.
 void usb_pid_handle_setup( uint32_t this_token, struct usb_internal_state_struct * ist )
 {
 	uint8_t addr = (this_token>>8) & 0x7f;
 	uint8_t endp = (this_token>>15) & 0xf;
+
+	ist->there_is_a_host = 1;
 
 	if( endp >= ENDPOINTS ) goto end;
 	if( addr != 0 && addr != ist->my_address ) goto end;
@@ -72,26 +74,28 @@ void usb_pid_handle_in( uint32_t this_token, struct usb_internal_state_struct * 
 		sendnow[1] = 0b11000011; //DATA0
 	}
 
-	if( !e->send || !e->ptr_in || e->ptr_in == EMPTY_SEND_BUFFER )  //Tricky: Empty packet.
+	if( tosend == 0 || !e->send || !e->ptr_in || e->ptr_in == EMPTY_SEND_BUFFER )  //Tricky: Empty packet.
 	{
 
 		//Tricky: Control messages are not allowed to send NAKs.  We /have/ to send an empty packet for them if no more data is available.
 		//With endpoints, proper, it's okay to send NAKs.
+
 		if( endp == 0 )
 		{
-			usb_send_data( sendnow, 2, 3 );  //Force a CRC
+			sendnow[2] = 0;
+			sendnow[3] = 0; //CRC = 0
+			usb_send_data( sendnow, 4, 2 );  //Force a CRC
 			e->ptr_in = 0;
 		}
 		else
 		{
-			uint8_t sendword[2] = { 0x80, 0x5a };  //Empty data. "NAK"
-			usb_send_data( sendword, 2, 2 );
+			sendnow[1] = 0x5a; //Empty data (NAK)
+			usb_send_data( sendnow, 2, 2 );
 		}
 	}
 	else
 	{
-		if( tosend )
-			ets_memcpy( sendnow+2, e->ptr_in + e->place_in, tosend );
+		ets_memcpy( sendnow+2, e->ptr_in + e->place_in, tosend );
 		usb_send_data( sendnow, tosend+2, 0 );
 		e->advance_in = tosend;
 	}
@@ -210,11 +214,15 @@ void usb_pid_handle_ack( uint32_t this_token, struct usb_internal_state_struct *
 	if( !e ) return;
 
 
+
 	e->toggle_in = !e->toggle_in;
 	e->place_in += e->advance_in;
+	e->advance_in = 0;
 	if( e->place_in == e->size_in )
 	{
 		e->send = 0;
+		if( e->transfer_in_done_ptr ) (*e->transfer_in_done_ptr) = 1;
+		e->transfer_in_done_ptr = 0;
 	}
 }
 
@@ -242,6 +250,5 @@ void  ICACHE_FLASH_ATTR usb_init()
 	gp[GPIO_OFFSET_DIR_IN/4] = _BV(DPLUS) | _BV(DMINUS);
 
     ETS_GPIO_INTR_ENABLE();
-
 }
 

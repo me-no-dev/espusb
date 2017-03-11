@@ -8,7 +8,7 @@ function KickHID()
 
 var lastMouseX;
 var lastMouseY;
-var TimeLastUp;
+var TimeLastUp, TimeLastDown;
 var ButtonsDown = 0;
 
 var UpTimeout;
@@ -16,7 +16,6 @@ var UpTimeout;
 
 function HandleUpDown( button, down )
 {
-	console.log( "HandleUpDown: " + button + " " + down );
 	var Mask = 1<<button;
 	if( down )
 		ButtonsDown |= Mask;
@@ -41,13 +40,15 @@ function MouseUpDown( down )
 	if( !down )
 	{
 		TimeLastUp = Date.now();
-		UpTimeout = setTimeout( function() { HandleUpDown( 0, false ); }, 200 );
+	    var dt = TimeLastUp - TimeLastDown;
+		if( dt < 100 ) HandleUpDown( 0, true );
+		UpTimeout = setTimeout( function() { HandleUpDown( 0, false ); }, 220 );
 	}
 	else
 	{
-		var now = Date.now();
-	    var dt = now - TimeLastUp;
-		HandleUpDown( 0, dt < 150 );
+		TimeLastDown = Date.now();
+	    var dt = TimeLastDown - TimeLastUp;
+		HandleUpDown( 0, dt < 130 );
 		try{ clearTimeout( UpTimeout ); } catch(e) { }
 	}
 }
@@ -57,66 +58,133 @@ function DeltaMouse( x, y )
 	msg = Math.round(x) + ", " + Math.round(y);
 	var msg = "CM" + ButtonsDown + "\t" + Math.round(x) + "\t" + Math.round(y);
 	QueueOperation( msg );	
-	console.log( msg );
+	//console.log( msg );
 }
 
 var KeyboardModifiers = 0;
-var ToProcessKeys = "";
 
-function ProcessKeys()
+var allUpper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+{}|:\"~<>?";
+var usblookup = {
+    0x08 : 0x2A, // BACKSPACE
+    0x09 : 0x2B, // TAB
+    0x0C : 0x28, // also [enter]  (may not be needed)
+	0x0D : 0x28, // ENTER
+    0x10 : 0xE1, // SHIFT
+    0x11 : 0xE0, // CTRL
+    0x12 : 0xE2, // ALT
+    0x14 : 0x39, // CAPS
+    0x1B : 0x29,
+    0x20 : 0x2C,
+    0xAD : 0x7F, // MUTE
+}
+var s1 = "abcdefghijklmnopqrstuvwxyz1234567890";
+var s2 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()";
+for (var c = 0; c < 36; c++) {
+    usblookup[s1[c].charCodeAt(0)] = c + 4;
+    usblookup[s2[c].charCodeAt(0)] = c + 4;
+}
+var s1 = "-=[]\\ ;'`,./";
+var s2 = "_+{}| :\"~<>?";
+for (var c = 0; c < 12; c++) {
+    if (c == 5) continue; // Skip over american-only hash-tilde, since that will mess with the non-american 3-hash and grave-tilde keys.
+    usblookup[s1[c].charCodeAt(0)] = c + 0x2D;
+    usblookup[s2[c].charCodeAt(0)] = c + 0x2D;
+}
+//TODO: This would mask regular ASCII
+//for (var c = 0; c < 12; c++) { // F1 .. F12
+//    usblookup[c + 0x70] = c + 0x3A;
+//}
+//for (var c = 0; c < 12; c++) { // F13 .. F24
+//    usblookup[c + /* TODO: Figure out keycode for F13 */] = c + 0x68;
+//}
+// TODO: Numpad
+
+function KeyModifiers()
 {
-	if( ToProcessKeys.length < 1 )
+	var mod = 0;
+	for( var i = 0; i < 4; i++ )
 	{
-		var msg = "CK" + KeyboardModifiers + "\t" + 0; //Move modifiers back to what they were.
-		QueueOperation( msg );
-		return;
+		if( $("#mod"+i).is(":checked") ) mod |= 1<<i;
 	}
-
-	var code = ToProcessKeys.charCodeAt(0);
-	ToProcessKeys = ToProcessKeys.substr(1);
-	console.log( code );
-	var ucode = 0;
-	var CurrentModifier = KeyboardModifiers;
-	//USB Codes: http://www.freebsddiary.org/APC/usb_hid_usages.php
-	if( code >= 65 && code <= 90 )
-	{
-		ucode = code - 65 + 4; //Convert to "A"
-		CurrentModifier |= 2; //Force left shift.
-	}
-	else if( code >= 97 && code <= 122 )
-	{
-		ucode = code - 97 + 4; //Convert to "a"
-		CurrentModifier &= ~2; //Force un-left-shift
-	}
-	else if( code >= 49 && code <= 57 )
-	{
-		ucode = code - 49 + 0x1e; //Convert to "A"
-		CurrentModifier &= ~2; //Force un-left-shift
-	}
-	else if( code == 33 ) { ucode = 0x1e; CurrentModifier = 2; }
-	else if( code == 64 ) { ucode = 0x1f; CurrentModifier = 2; }
-	else if( code == 35 ) { ucode = 0x20; CurrentModifier = 2; }
-	else if( code == 36 ) { ucode = 0x21; CurrentModifier = 2; }
-	else if( code == 37 ) { ucode = 0x22; CurrentModifier = 2; }
-	else if( code == 94 ) { ucode = 0x23; CurrentModifier = 2; }
-	else if( code == 38 ) { ucode = 0x24; CurrentModifier = 2; } //&
-	else if( code == 42 ) { ucode = 0x25; CurrentModifier = 2; }
-	else if( code == 40 ) { ucode = 0x26; CurrentModifier = 2; } //(
-	else if( code == 48 ) { ucode = 0x27; CurrentModifier = 0; } //0
-	else if( code == 41 ) { ucode = 0x27; CurrentModifier = 2; }
-
-	if( ucode > 0 )
-	{
-		QueueOperation( "CK" + CurrentModifier + "\t" + ucode );
-	}
+	KeyboardModifiers = mod;
+    keyops.push("CK" + KeyboardModifiers + "\t0");
 }
 
-setInterval( ProcessKeys, 60 );
-
-function HandleNewText()
+function SpecKey( k, code )
 {
-	ToProcessKeys += $("#KeyboardInput").val();
-	$("#KeyboardInput").val("");
+	console.log( "::::" + code );
+    keyops.push("CK" + KeyboardModifiers + "\t" + code );
+    keyops.push("CK" + KeyboardModifiers + "\t0");
+}
+
+$(document).ready(function () {
+    // Delay adding events, until the document is fully loaded
+    $("#kbd").click(function () {$("#kin").focus(); });
+    $("#kin").on("keydown keyup", function (ev) {
+        var type = ev.type == "keydown" ? 1 : 0;
+        var c = ev.originalEvent.keyCode;
+        if (c == 229) { // Android keyboard "Unidentified" (for Swipe, etc.)
+            if (type == 1) return; // Only check the text box on KeyUp events
+            KeypressMulti(this.value);
+            this.value = "";
+            return;
+        }
+        var usbId = usblookup[c];
+        //console.log(ev);
+        if (usbId === undefined) return; // Not a valid HID key code
+        ev.preventDefault(); // Stop things like TAB switching fields
+        this.value = "";
+        //console.log( usbId + " " +  type + " " + ev.shiftKey );
+        Keypress(usbId, type, ev.shiftKey);
+    });
+
+	for( var i = 0; i < 4; i++ )
+	{
+		$("#mod"+i).change(KeyModifiers);
+	}
+
+	var codes = [ 41, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 72, 76, 75, 78, 74, 77, 40, 128, 129, 79, 80, 81, 82 ];
+	for( var i = 0; i < codes.length; i++ )
+	{
+		let code = codes[i];
+		$("#specialpress"+i).click( function(k) { SpecKey(k, code ); } );
+	}
+});
+
+var keyops = [];
+function KeyInterval()
+{
+	if( keyops.length )
+	{
+		QueueOperation( keyops[0] );
+		keyops.shift();
+	}
+}
+setInterval( KeyInterval, 15 );
+
+function Keypress(id, type, shift) {
+	var mods = KeyboardModifiers;
+    if (shift) {
+        mods |= 2;
+    } else {
+        mods &=~2;
+    }
+    
+    if (type == 1) keyops.push("CK" + mods + "\t" + id); // Need a sanity check;
+    if (type == 0) keyops.push("CK" + KeyboardModifiers + "\t0");
+}
+function KeypressMulti(str) {
+    [].forEach.call(str, function(char) {
+        //console.log(char);
+        var modifier = KeyboardModifiers;
+        if (allUpper.indexOf(char) >= 0) modifier |= 2;
+        let id = usblookup[char.charCodeAt(0)];
+        if (id === undefined) return;
+        $("#typed").text(($("#typed").text() + char).slice(-50));
+        $("#codes").text(($("#codes").text() + " " + ("0"+id.toString(16)).slice(-2)).slice(-50))
+        keyops.push("CK" + modifier + "\t" + id);
+	    keyops.push("CK" + KeyboardModifiers + "\t0");
+    });
 }
 
 function AttachMouseListener()
@@ -156,85 +224,8 @@ function AttachMouseListener()
 		$("#Mouse"+b).on("touchstart", function(event) { HandleUpDown( ths, 1 ); } );
 	}
 
-	$("#KeyboardInput").on( "input", function() { HandleNewText() } );
-
 	console.log( "Attaching." );
 }
 
 window.addEventListener("load", AttachMouseListener, false);
-
-/*
-is_leds_running = false;
-pause_led = false;
-
-function KickLEDs()
-{
-	$( "#LEDPauseButton" ).css( "background-color", (is_leds_running&&!pause_led)?"green":"red" );
-
-	if( !is_leds_running && !pause_led )
-		LEDDataTicker();
-
-}
-
-window.addEventListener("load", KickLEDs, false);
-
-function ToggleLEDPause()
-{
-	pause_led = !pause_led;
-	KickLEDs();
-}
-
-
-function GotLED(req,data)
-{
-	var ls = document.getElementById('LEDCanvasHolder');
-	var canvas = document.getElementById('LEDCanvas');
-	var ctx = canvas.getContext('2d');
-	var h = ls.height;
-	var w = ls.width;
-	if( canvas.width != ls.clientWidth-10 )   canvas.width = ls.clientWidth-10;
-	if( ctx.canvas.width != canvas.clientWidth )   ctx.canvas.width = canvas.clientWidth;
-
-	var secs = data.split( ":" );
-
-	$( "#LEDPauseButton" ).css( "background-color", "green" );
-
-	var samps = Number( secs[1] );
-	var data = secs[2];
-	var lastsamp = parseInt( data.substr(0,4),16 );
-	ctx.clearRect( 0, 0, canvas.width, canvas.height );
-
-	for( var i = 0; i < samps; i++ )
-	{
-		var x2 = i * canvas.clientWidth / samps;
-		var samp = data.substr(i*6,6);
-		var y2 = ( 1.-samp / 2047 ) * canvas.clientHeight;
-
-		ctx.fillStyle = "#" + samp.substr( 2, 2 ) + samp.substr( 0, 2 ) + samp.substr( 4, 2 );
-		ctx.lineWidth = 0;
-		ctx.fillRect( x2, 0, canvas.clientWidth / samps+1, canvas.clientHeight );
-	}
-
-	var samp = parseInt( data.substr(i*2,2),16 );
-
-	LEDDataTicker();
-} 
-
-function LEDDataTicker()
-{
-	if( IsTabOpen('LEDs') && !pause_led )
-	{
-		is_leds_running = true;
-		QueueOperation( "CL",  GotLED );
-	}
-	else
-	{
-		is_leds_running = 0;
-	}
-	$( "#LEDPauseButton" ).css( "background-color", (is_leds_running&&!pause_led)?"green":"red" );
-
-}
-
-*/
-
 
